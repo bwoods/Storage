@@ -24,11 +24,11 @@ pub enum Command {
 
 #[derive(Args, Debug)]
 pub struct Info {
-    /// Show sizes rather than page counts.
-    #[arg(short, long)]
-    sizes: Option<Units>,
-    /// Show the sizes based on powers of 1000 (rather than 1024).
-    #[arg(long, requires = "sizes")]
+    /// Selects the units to display sizes in
+    #[arg(short, long, default_value = "B")]
+    sizes: Units,
+    /// Show the sizes based on powers of 1000 (rather than 1024)
+    #[arg(long)]
     si: bool,
 }
 

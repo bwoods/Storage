@@ -8,8 +8,9 @@ use std::path::PathBuf;
 use storage::File;
 
 pub mod csv;
-pub mod db;
+pub mod file;
 pub mod help;
+pub mod mesh;
 pub mod obj;
 
 #[derive(Parser, Debug)]
@@ -32,7 +33,10 @@ pub struct Args {
 pub enum Noun {
     /// File information and maintenance
     #[command(subcommand)]
-    File(db::Command),
+    File(file::Command),
+    /// Mesh
+    #[command(subcommand)]
+    Mesh(mesh::Command),
     /// Import/export of tables
     #[command(subcommand)]
     Csv(csv::Command),
@@ -51,9 +55,10 @@ fn cli(mut file: File, command: Noun) -> Result<Option<String>, Box<dyn Error>> 
         Noun::Csv(verb) => verb.run(&mut file)?,
         Noun::Obj(verb) => verb.run(&mut file)?,
         Noun::File(verb) => verb.run(&mut file)?,
+        Noun::Mesh(verb) => verb.run(&mut file)?,
         Noun::Script => {
             let mut callbacks: CallBackMap<File, Box<dyn Error>> = HashMap::new();
-            callbacks.insert("file".to_string(), db::verbs);
+            callbacks.insert("file".to_string(), file::verbs);
             callbacks.insert("csv".to_string(), csv::verbs);
             callbacks.insert("obj".to_string(), obj::verbs);
 
