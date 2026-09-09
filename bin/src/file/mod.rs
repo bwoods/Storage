@@ -1,13 +1,16 @@
+use frame::Frames;
 use reedline_repl_rs::clap::{ArgMatches, Args, FromArgMatches, Subcommand, ValueEnum};
 use std::error::Error;
-use storage::File;
+
+pub fn verbs(args: ArgMatches, file: &mut Frames) -> Result<Option<String>, Box<dyn Error>> {
+    Ok(Verb::from_arg_matches(&args)?.with(file)?)
+}
 
 #[derive(Debug, Subcommand)]
-pub enum Command {
+pub enum Verb {
     /// Display disk usage statistics
     ///
-    /// Displays the file system page usage for each frame in the file,
-    /// as well as general overhead for metadata and tree structures.
+    /// Displays the file system usage for each frame in the file.
     #[clap(alias = "du")]
     Info(Info),
     /// Reduce disk usage (if possible)
@@ -20,6 +23,23 @@ pub enum Command {
     Path,
     /// Size of the file on disk
     Size,
+}
+
+impl Verb {
+    pub(crate) fn with(self, file: &mut Frames) -> Result<Option<String>, Box<dyn Error>> {
+        let msg = match self {
+            Verb::Compact => match file.compact()? {
+                false => Some("no work to do".to_string()),
+                true => None,
+            },
+            Verb::Info { .. } => Some(file.info()?),
+            Verb::PageSize => Some(file.page_size()?.to_string()),
+            Verb::Path => Some(file.file_path()?.to_string()),
+            Verb::Size => Some(file.file_size()?.to_string()),
+        };
+
+        Ok(msg)
+    }
 }
 
 #[derive(Args, Debug)]
@@ -52,25 +72,4 @@ pub enum Units {
     /// Petabytes
     #[clap(name = "PB")]
     PB,
-}
-
-pub fn verbs(args: ArgMatches, file: &mut File) -> Result<Option<String>, Box<dyn Error>> {
-    Ok(Command::from_arg_matches(&args)?.run(file)?)
-}
-
-impl Command {
-    pub(crate) fn run(self, file: &mut File) -> Result<Option<String>, Box<dyn Error>> {
-        let msg = match self {
-            Command::Compact => match file.compact()? {
-                false => Some("no work to do".to_string()),
-                true => None,
-            },
-            Command::PageSize => Some(file.page_size()?.to_string()),
-            Command::Info { .. } => Some(file.stats()?.to_string()),
-            Command::Size => Some(file.file_size()?.to_string()),
-            Command::Path => Some(file.file_path()?.to_string()),
-        };
-
-        Ok(msg)
-    }
 }

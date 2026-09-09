@@ -1,9 +1,9 @@
 use crate::{Args as Arguments, Noun};
 use clap::{Args, ValueEnum};
 use clap_tui::{Theme, ThemePreset, Tui, TuiConfig};
+use frame::Frames;
 use std::error::Error;
 use std::time::Duration;
-use storage::File;
 
 #[derive(Args, Debug)]
 pub struct UI {
@@ -30,9 +30,9 @@ fn light() -> Theme {
     // TODO: further customization
 }
 
-pub fn run<F>(file: File, ui: UI, mut cli: F) -> Result<Option<String>, Box<dyn Error>>
+pub fn run<F>(file: Frames, ui: UI, mut cli: F) -> Result<Option<String>, Box<dyn Error>>
 where
-    F: FnMut(File, Noun) -> Result<Option<String>, Box<dyn Error>>,
+    F: FnMut(Frames, Noun) -> Result<Option<String>, Box<dyn Error>>,
 {
     let mut config = TuiConfig::default();
     config.theme = match ui.theme {
@@ -46,7 +46,6 @@ where
 
     let tui = Tui::<Arguments>::new()
         .with_config(config)
-        .hide_entrypoint("script")?
         .hide_entrypoint("help")?;
 
     if let Some(args) = tui.run()? {

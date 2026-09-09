@@ -1,0 +1,19 @@
+[package]
+name = "frame"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+arrow.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+
+flux-loom = { path = "patch/flux/crates/loom" }
+lsm1 = { path = "patch/lsm1" }
+
+fallible-iterator = "0.3.0"
+tempfile = "3.27.0"
+log = "0.4.34"
