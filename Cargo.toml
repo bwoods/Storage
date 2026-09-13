@@ -11,28 +11,22 @@ license = "MIT OR Apache-2.0"
 authors = ["Bryan Woods"]
 repository = "https://github.com/bwoods/Storage"
 
-
 [workspace.dependencies]
 frame = { path = "lib" }
 arrow = { version = "59", features = ["prettyprint", "csv", "json", "ipc"] }
-arrow-arith = "59"
+#arrow-arith = "59"
 arrow-array = "59"
 arrow-buffer = "59"
-arrow-cast = "59"
-arrow-csv = "59"
+#arrow-cast = "59"
+#arrow-csv = "59"
 arrow-schema = "59"
-arrow-select = "59"
+#arrow-select = "59"
 serde_arrow = { version = "0.15", features = ["arrow-59"] }
 serde = { version = "1.0", features = ["derive"] }
 
-fallible-iterator = "0.3.0"
 itertools = "0.15.0"
 ouroboros = "0.18.5"
-
-log = { version = "0.4.34", features = ["kv"] }
-
-
-lsm1 = { path = "patch/lsm1" }
+#log = { version = "0.4.34", features = ["kv"] }
 
 # loom expects its dependencies to be in the workspace
 fsst = { package = "fsst-rs", version = "0.6" }

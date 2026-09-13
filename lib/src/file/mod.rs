@@ -17,12 +17,14 @@ use std::ptr::null_mut;
 
 mod range;
 
+use crate::entry::Entry;
 pub use range::Range;
+
 pub type File = *mut lsm_db;
 pub type Cursor = *mut lsm_cursor;
 
 impl Frames {
-    pub fn new(path: &Path) -> Result<Self, StorageError> {
+    pub(crate) fn new(path: &Path) -> Result<Self, StorageError> {
         let path = canonicalize(path)?;
         let cstr = CString::new(path.as_os_str().as_encoded_bytes())?;
 
@@ -38,6 +40,11 @@ impl Frames {
         }
 
         Ok(Self { file, path })
+    }
+
+    // Note: `&mut self` to prevent a sibling txn() call until this one is drop()’d
+    pub fn txn(&mut self) -> Result<Txn<'_>, StorageError> {
+        Txn::new(self, 0)
     }
 
     fn config_value(&self, config: Config, value: Option<u32>) -> Result<u32, StorageError> {
@@ -87,28 +94,57 @@ impl Frames {
 
         Ok(str)
     }
-
-    pub(crate) fn begin(&self, txn: u32) -> Result<NonZeroU32, StorageError> {
-        let txn = unsafe { NonZeroU32::new_unchecked(u32::max(txn, 1)) };
-        unsafe { lsm_begin(self.file, txn.get().try_into()?).ok()? }
-        Ok(txn)
-    }
-
-    pub(crate) fn commit(&self, txn: u32) -> Result<(), StorageError> {
-        unsafe { lsm_commit(self.file, txn.try_into()?).ok()? }
-        Ok(())
-    }
-
-    pub(crate) fn rollback(&self, txn: u32) -> Result<(), StorageError> {
-        unsafe { lsm_rollback(self.file, txn.try_into()?).ok()? }
-        Ok(())
-    }
 }
 
 impl Drop for Frames {
     fn drop(&mut self) {
         // The borrow checker should prevent the existence of any lingering
         // transactions or cursors that would cause this call to fail.
-        unsafe { lsm_close(self.file).ok().expect("~db") }
+        unsafe { lsm_close(self.file) }.ok().expect("~db")
+    }
+}
+
+pub struct Txn<'a> {
+    frames: &'a Frames,
+    level: NonZeroU32,
+}
+
+impl<'a> Txn<'a> {
+    /// Gets the entry for in-place manipulation.
+    pub fn entry(&mut self, name: &str) -> Result<Entry<'_>, StorageError> {
+        Entry::new(self.frames, name)
+    }
+
+    pub fn new(frames: &'a Frames, txn: u32) -> Result<Self, StorageError> {
+        let level = unsafe { NonZeroU32::new_unchecked(txn + 1) };
+        unsafe { lsm_begin(frames.file, level.get().try_into()?).ok()? }
+
+        Ok(Txn { frames, level })
+    }
+
+    // Note: `&mut self` to prevent a sibling txn() call until this one is drop()’d
+    pub fn txn(&mut self) -> Result<Txn<'_>, StorageError> {
+        Self::new(self.frames, self.level.get())
+    }
+
+    pub fn commit(self) -> Result<(), StorageError> {
+        // SAFETY: level.get() already checked in new()
+        unsafe { lsm_commit(self.frames.file, self.level.get() as i32).ok()? }
+        Ok(())
+    }
+
+    pub fn rollback(self) -> Result<(), StorageError> {
+        drop(self);
+        Ok(())
+    }
+}
+
+impl Drop for Txn<'_> {
+    // This does nothing for already commit()’d or rollback()’d transactions
+    fn drop(&mut self) {
+        // SAFETY: level.get() already checked in new()
+        unsafe { lsm_rollback(self.frames.file, self.level.get() as i32) }
+            .ok()
+            .expect("~tx")
     }
 }

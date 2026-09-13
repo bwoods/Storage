@@ -1,11 +1,11 @@
 #![deny(unsafe_code)]
+mod entry;
 mod error;
 mod file;
-mod txn;
 
+pub use entry::arrow::RecordBatch;
 pub use error::StorageError;
-pub use file::Range;
-pub use txn::Txn;
+pub use file::{Range, Txn};
 
 use crate::file::File;
 use std::path::{Path, PathBuf};
@@ -35,8 +35,8 @@ impl Frames {
     }
 }
 
-#[derive(Copy, Clone)]
 // https://aras-p.info/blog/2021/08/06/EXR-Zstandard-compression/
+#[derive(Copy, Clone)]
 pub enum Compression {
     /// 1 — 2.463 ratio, 837.4 MB/s writes, 2012.3 MB/s reads
     Fast,
