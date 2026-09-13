@@ -12,7 +12,7 @@ use std::sync::Arc;
 pub struct RecordBatch(arrow_array::RecordBatch);
 
 impl RecordBatch {
-    pub(crate) fn compress(batch: &RecordBatch) -> Result<impl AsRef<[u8]>, StorageError> {
+    pub(crate) fn compress(batch: &RecordBatch) -> Result<Vec<u8>, StorageError> {
         // Secondary compression is now done over LSM blocks, rather than `RecordBatch`s.
         // Unfortunately, this means that we no longer directly benefit from the ability
         // to skip (secondary) decompression by filtering over Flux/Atlas footers.
@@ -50,6 +50,14 @@ impl RecordBatch {
             FluxError::Io(error) => error.into(),
             _ => StorageError::Decompression(err.to_string()),
         })
+    }
+
+    /// Performs a zero-copy slice of each column.
+    ///
+    /// # Panics
+    /// Panics if `offset` plus `length` is greater than column length.
+    pub fn slice(&mut self, offset: usize, length: usize) {
+        self.0 = self.0.slice(offset, length)
     }
 }
 

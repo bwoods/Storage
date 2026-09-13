@@ -5,7 +5,7 @@ mod file;
 
 pub use entry::arrow::RecordBatch;
 pub use error::StorageError;
-pub use file::{Range, Txn};
+pub use file::{RangeInclusive, Txn};
 
 use crate::file::File;
 use std::path::{Path, PathBuf};

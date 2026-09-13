@@ -10,8 +10,10 @@ repository.workspace = true
 arrow.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
-itertools.workspace = true
+serde_arrow.workspace = true
+serde = "1.0.229"
 
+itertools.workspace = true
 flux-loom = { path = "patch/flux/crates/loom" }
 lsm1 = { path = "patch/lsm1" }
 

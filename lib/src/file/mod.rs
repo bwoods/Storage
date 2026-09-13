@@ -18,7 +18,7 @@ use std::ptr::null_mut;
 mod range;
 
 use crate::entry::Entry;
-pub use range::Range;
+pub use range::RangeInclusive;
 
 pub type File = *mut lsm_db;
 pub type Cursor = *mut lsm_cursor;

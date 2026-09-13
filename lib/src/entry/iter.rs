@@ -1,12 +1,12 @@
 use crate::RecordBatch;
 use crate::entry::OccupiedEntry;
-use crate::{Range, StorageError};
+use crate::{RangeInclusive, StorageError};
 use itertools::{PutBack, put_back};
 use loom::Predicate;
 
 impl<'a> OccupiedEntry<'a> {
     pub fn iter(&'a self) -> Result<Iter<'a>, StorageError> {
-        let inner = put_back(self.range()?);
+        let inner = put_back(self.intervals()?);
         let projection = Vec::default();
         let predicate = Predicate::None;
 
@@ -32,7 +32,7 @@ impl<'a> Iter<'a> {
 }
 
 pub struct Iter<'a> {
-    pub(crate) inner: PutBack<Range<'a>>,
+    pub(crate) inner: PutBack<RangeInclusive<'a>>,
     pub(crate) projection: Vec<String>,
     pub(crate) predicate: Predicate,
 }

@@ -9,6 +9,7 @@ pub enum StorageError {
     Arrow(arrow::error::ArrowError),
     Limits(std::num::TryFromIntError),
     NulError(std::ffi::NulError),
+    Deserialization(serde_arrow::Error),
     Decompression(String),
     Compression(String),
     Empty,

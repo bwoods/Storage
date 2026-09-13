@@ -1,10 +1,10 @@
 use crate::{Frames, RecordBatch, StorageError};
 use itertools::Itertools;
-use std::ops::RangeBounds;
-use std::ops::{Bound, Range};
+use std::ops::RangeInclusive;
 
 pub mod arrow;
 pub mod iter;
+pub mod range;
 
 /// A view into a single entry, which may either be vacant or occupied.
 ///
@@ -83,7 +83,7 @@ pub struct VacantEntry<'a> {
 }
 
 impl<'a> VacantEntry<'a> {
-    /// Sets the value of the entry with the `VacantEntr`y`’s key, and returns an `OccupiedEntry`.
+    /// Sets the value of the entry with the `VacantEntry`’s key and returns an `OccupiedEntry`.
     pub fn insert_entry(self, value: RecordBatch) -> Result<OccupiedEntry<'a>, StorageError> {
         let mut occupied = OccupiedEntry {
             frames: self.frames,
@@ -111,28 +111,27 @@ pub struct OccupiedEntry<'a> {
 }
 
 impl<'a> OccupiedEntry<'a> {
-    /// Appends the new `RecordBatch` to the `OccupiedEntry`.
+    /// Appends a new `RecordBatch` to the `OccupiedEntry`.
     pub fn insert_entry(
         &mut self,
         value: RecordBatch,
     ) -> Result<&mut OccupiedEntry<'a>, StorageError> {
-        let start = match self.range()?.last().transpose()?.map(|(key, _)| key) {
+        let start = match self.intervals()?.last().transpose()?.map(|(key, _)| key) {
             Some(key) => key,
             None => self.interval.min(),
         };
 
         let bytes = RecordBatch::compress(&value)?;
-        let range = Interval::open(start.to_owned(), self.interval.max().to_owned())?;
-
-        self.frames
-            .range(range.range())?
-            .replace(Some(bytes.as_ref()))?;
+        let interval = Interval::open(start.to_owned(), self.interval.max().to_owned())?;
+        self.frames.range(interval.range())?.replace(Some(bytes))?;
 
         Ok(self)
     }
 
+    /// Removes the entry and returns a `VacantEntry`.
     pub fn remove_entry(self) -> Result<VacantEntry<'a>, StorageError> {
         self.frames.range(self.interval.range())?.replace(None)?;
+
         Ok(VacantEntry {
             frames: self.frames,
             name: self.interval.into_key(),
@@ -144,12 +143,13 @@ impl<'a> OccupiedEntry<'a> {
         self.interval.as_ref()
     }
 
-    pub(crate) fn range(&self) -> Result<crate::Range<'a>, StorageError> {
+    /// Returns a `Iterator` over all keys of this entry
+    fn intervals(&self) -> Result<crate::RangeInclusive<'a>, StorageError> {
         self.frames.range(self.interval.range())
     }
 }
 
-/// Represents all of the keys between `"{key}\u{F0000}"` and `"{key}\u{10FFFF}"`.
+/// Represents all the keys between `"{key}\u{F0000}"` and `"{key}\u{10FFFF}"`.
 ///
 /// It is used internally by `OccupiedEntry` to allow it to store all of `key`’s
 /// values in multiple `RecordBatch`s.
@@ -167,7 +167,7 @@ struct Interval {
 const SUFFIX_LEN: usize = 4;
 
 impl Interval {
-    /// Returns a semi-open interval covering the range over `key`
+    /// Returns a closed interval covering the range over `key`
     fn over(mut key: String) -> Result<Self, StorageError> {
         let mut max = key.clone();
         max.push('\u{10FFFF}'); // end of the Private Use Area(s)
@@ -176,7 +176,7 @@ impl Interval {
         Ok(Self { min: key, max })
     }
 
-    /// Returns an open interval between `min` and `max`
+    /// Returns an semi-open interval; excluding `min` and including `max`
     fn open(mut min: String, max: String) -> Result<Self, StorageError> {
         let mut index = min.pop().expect("key");
         index = char::from_u32(index as u32 + 1).ok_or(StorageError::Full)?;
@@ -194,11 +194,8 @@ impl Interval {
         self.min
     }
 
-    fn range(&self) -> Range<&str> {
-        Range {
-            start: &self.min,
-            end: &self.max,
-        }
+    fn range(&self) -> RangeInclusive<&str> {
+        self.min.as_str()..=self.max.as_str()
     }
 
     fn min(&self) -> &str {
@@ -207,16 +204,6 @@ impl Interval {
 
     fn max(&self) -> &str {
         &self.max
-    }
-}
-
-impl RangeBounds<str> for Interval {
-    fn start_bound(&self) -> Bound<&str> {
-        Bound::Included(self.min())
-    }
-
-    fn end_bound(&self) -> Bound<&str> {
-        Bound::Excluded(self.max())
     }
 }
 

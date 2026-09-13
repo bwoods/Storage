@@ -11,15 +11,18 @@ use std::slice::from_raw_parts;
 use std::str::from_utf8_unchecked;
 
 impl Frames {
-    pub fn range(&self, range: std::ops::Range<&str>) -> Result<Range<'_>, StorageError> {
+    pub fn range(
+        &self,
+        range: std::ops::RangeInclusive<&str>,
+    ) -> Result<RangeInclusive<'_>, StorageError> {
         let mut cursor = null_mut();
 
         unsafe {
             lsm_csr_open(self.file, &mut cursor).ok()?;
             lsm_csr_seek(
                 cursor,
-                range.start.as_ptr(),
-                range.start.len().try_into()?,
+                range.start().as_ptr(),
+                range.start().len().try_into()?,
                 Seek::GE,
             )
             .ok()
@@ -29,11 +32,11 @@ impl Frames {
             })?;
         };
 
-        Ok(Range {
+        Ok(RangeInclusive {
             marker: Default::default(),
             cursor,
             file: self.file,
-            end: range.end.to_owned(),
+            end: (*range.end()).to_owned(),
         })
     }
 }
@@ -41,14 +44,14 @@ impl Frames {
 /// An iterator over a range.
 ///
 /// See [`std::collections::btree_map::Range`] for comparison.
-pub struct Range<'a> {
+pub struct RangeInclusive<'a> {
     marker: PhantomData<&'a u8>,
     cursor: Cursor,
     file: File,
     end: String,
 }
 
-impl<'a> Range<'a> {
+impl<'a> RangeInclusive<'a> {
     /// More akin to [`std::ops::Range`] than [`std::collections::btree_map::Range`]
     pub fn start(&self) -> Result<&str, StorageError> {
         let mut ptr: *const u8 = null_mut();
@@ -90,18 +93,15 @@ impl<'a> Range<'a> {
 
     /// # Note
     /// This will **not** be an atomic operation if not performed within a transaction
-    pub(crate) fn replace(&self, with: Option<&[u8]>) -> Result<(), StorageError> {
+    pub(crate) fn replace(&self, with: Option<Vec<u8>>) -> Result<(), StorageError> {
         let start = self.start()?;
         let end = self.end()?;
-
-        if start == end {
-            return Err(StorageError::Full);
-        }
 
         // Both start and end came from the LSM itself, so their lengths
         // are guaranteed to be compatible with the LSM’s (i32) limits…
 
         unsafe {
+            lsm_delete(self.file, end.as_ptr(), end.len() as i32).ok()?;
             lsm_delete_range(
                 self.file,
                 start.as_ptr(),
@@ -128,7 +128,7 @@ impl<'a> Range<'a> {
     }
 }
 
-impl<'a> Iterator for Range<'a> {
+impl<'a> Iterator for RangeInclusive<'a> {
     type Item = Result<(&'a str, &'a [u8]), StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -146,7 +146,8 @@ impl<'a> Iterator for Range<'a> {
             )
             .ok()?;
 
-            if cmp >= 0 {
+            // inclusive range
+            if cmp > 0 {
                 return Ok(None);
             }
 
@@ -203,10 +204,10 @@ impl<'a> Iterator for Range<'a> {
     }
 }
 
-impl FusedIterator for Range<'_> {}
+impl FusedIterator for RangeInclusive<'_> {}
 
-impl Drop for Range<'_> {
+impl Drop for RangeInclusive<'_> {
     fn drop(&mut self) {
-        let _ = unsafe { lsm_csr_close(self.cursor) };
+        unsafe { lsm_csr_close(self.cursor) }.ok().expect("~rg")
     }
 }
